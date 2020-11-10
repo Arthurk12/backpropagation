@@ -4,16 +4,16 @@ import numpy as np
 from neuralnetwork import NeuralNetwork
 
 def main(arglist):
-    
+    np.set_printoptions(formatter={'float_kind':"{:.5f}".format})
+
     regularizationFactor, layerNeuroniums = processNetworkFile(arglist.network)
     initialWeights = processInitialWeightsFile(arglist.initial_weights)
     dataset = pd.read_csv(arglist.dataset, sep=' |; |, ', header = None , engine='python')
+       
     print("DATASET: \n", dataset)
-    print("MATRIZ DE PESOS: \n", initialWeights)
+    for i in range(len(initialWeights)):
+        print("MATRIZ DE PESOS", i, ":\n", initialWeights[i])
     print("FATOR DE REGULARIZACÃO: \n", regularizationFactor)
-
-
-
 
 
     n1 = NeuralNetwork(layerNeuroniums, regularizationFactor, 0.25)
