@@ -8,6 +8,7 @@ class NeuralNetwork:
         self.layersNumber = len(layersStructure)
         self.regularizationFactor = regularizationFactor
         self.learningRate = learningRate
+        self.epsilon = 0.000001
 
         self.weightsMatrixList = []
         self.activationVectorsList = []
@@ -24,7 +25,6 @@ class NeuralNetwork:
         np.set_printoptions(formatter={'float_kind':self.float_formatter})
         pd.options.display.float_format = self.float_formatter
 
-        #print(self.activationVectorsList)
    
     def initRandomWeightsMatrixes(self):
         for index in range(self.layersNumber-1):
@@ -48,26 +48,30 @@ class NeuralNetwork:
 
     def getSigmoid(self, z):
         return 1/(1 + np.exp(-z))
-        
+  
     def getError(self, pred_y, or_y):
-        J = np.sum(-or_y*np.log(pred_y) - (1.0 - or_y)*np.log(1.0 - pred_y))
+        J = np.sum((-or_y)*np.log(pred_y) - (1.0 - or_y)*np.log(1.0 - pred_y))
+
+        J = J/len(or_y)
         return J
-    
+
     def getErrorWithRegularization(self, pred_y, or_y):
-        J = self.getError(pred_y, or_y)/len(or_y)
+        J = self.getError(pred_y, or_y)
+
         S=0
-        for layer in range(self.layersNumber-1):
+        for layer in range(self.lastLayer()):
             S += np.sum(self.weightsMatrixList[layer][:,1:]*self.weightsMatrixList[layer][:,1:])    #weight matrix without bias weights
-        S = S*(self.regularizationFactor)/(2*len(or_y))
+        S = S*((self.regularizationFactor)/(2*len(or_y)))
+
         error = J+S
         return error
-
-    def backPropagation(self, predY, oriY):
+    
+    def backPropagation(self, inputs, oriY):
         print("RODANDO BACKPROPAGATION")
         
-        for index in range(len(oriY)):
-            print("\n\nCALCULANDO DELTAS DA INSTANCIA", index, ":")
-            self.calculateLastLayerDelta(predY[index], oriY[index])
+        for index in range(len(inputs)):
+            predicted = self.propagate(inputs[index], False)
+            self.calculateLastLayerDelta(predicted, oriY[index])
             for layer in reversed(range(self.lastLayer())):             #decreasing
                 self.deltaVectorsList[layer] = np.dot(self.weightsMatrixList[layer].T, self.deltaVectorsList[layer+1])
                 self.deltaVectorsList[layer] = np.multiply(self.deltaVectorsList[layer],np.multiply(self.activationVectorsList[layer],np.subtract(1.0,self.activationVectorsList[layer])))
@@ -75,7 +79,7 @@ class NeuralNetwork:
                 print("delta", layer+1, ":\n", self.deltaVectorsList[layer])
                 
             for layer in reversed(range(self.lastLayer())):             #decreasing
-                print("GRADIENTE DE TETA", layer+1, "COM BASE NA INSTANCIA", index, ":\n", np.dot(self.deltaVectorsList[layer+1], self.activationVectorsList[layer].T))
+                print("GRADIENTE DE THETA", layer+1, "COM BASE NA INSTANCIA", index, ":\n", np.dot(self.deltaVectorsList[layer+1], self.activationVectorsList[layer].T))
                 self.gradientMatrixList[layer] = np.add(self.gradientMatrixList[layer], np.dot(self.deltaVectorsList[layer+1], self.activationVectorsList[layer].T))
         
         print("\n\nDATASET COMPLETO PROCESSADO. CALCULANDO GRADIENTES REGULARIZADOS\n")
@@ -84,7 +88,9 @@ class NeuralNetwork:
             P = self.regularizationFactor*self.weightsMatrixList[layer]
             P[:,0]=0
             self.gradientMatrixList[layer] = (1/len(oriY))*np.add(self.gradientMatrixList[layer], P)
-            print("GRADIENTES FINAIS PARA TETA", layer+1, "(com regularizacão):\n", self.gradientMatrixList[layer])
+            print("GRADIENTES FINAIS PARA THETA", layer+1, "(com regularizacão):\n", self.gradientMatrixList[layer])
+
+        print(self.calculateNumericGradients(inputs, oriY))
 
         for layer in range(self.lastLayer()):             #decreasing
             self.weightsMatrixList[layer] = self.weightsMatrixList[layer] - self.learningRate*self.gradientMatrixList[layer]
@@ -98,41 +104,47 @@ class NeuralNetwork:
 
         predY=[]
         
-
+        print("------------------------------------------------------------")
+        print("CALCULANDO ERRO")
         for index in range(len(inputs)):
-            print("------------------------------------------------------------")
-            predicted = self.propagate(inputs[index])
+            predicted = self.propagate(inputs[index], True)
             print("VALOR PREDITO: \n", predicted)
             print("VALOR ESPERADO: \n", oriY[index])
-            print("ERRO J DA INSTANCIA", index, ":", self.getError(predicted, oriY[index]))
+            print("ERRO J DA INSTANCIA", index, ":", self.getError(predicted, np.atleast_2d(oriY[index])))
 
             predY.append(predicted)
 
         predY = np.array(predY)
+        print("PREDY VECTOR: ", predY)
+        print("ORIY VECTOR: ", oriY)
 
         print("J TOTAL DO DATASET (COM REGULARIZACÃO): ", self.getErrorWithRegularization(predY, oriY))
         print("------------------------------------------------------------")
 
 
-        self.backPropagation(predY, oriY)
+        self.backPropagation(inputs, oriY)
     
     def isLastButOneLayer(self, layer):
         return layer == (self.layersNumber-2)
 
-    def propagate(self, input):
-        print("PROPAGANDO ENTRADA: ", input)
+    def propagate(self, input, verbose):
+        if(verbose):
+            print("PROPAGANDO ENTRADA: ", input)
         input = np.array(input, ndmin=2)
         input = np.insert(input, 0, np.array([1]), axis=1)  #insert bias
         self.activationVectorsList[0] = input.T             #transforma em vetor coluna
 
         for layer in range(self.layersNumber-1):
-            print("A", layer+1, ":\n", self.activationVectorsList[layer])
+            if(verbose):
+                print("A", layer+1, ":\n", self.activationVectorsList[layer])
             z = np.dot(self.weightsMatrixList[layer], self.activationVectorsList[layer])
-            print("Z", layer+2, ":\n", z)
+            if(verbose):
+                print("Z", layer+2, ":\n", z)
             if(self.isLastButOneLayer(layer)):
                 self.activationVectorsList[layer+1] = self.getSigmoid(z)
-                print("F(X) =\n", self.activationVectorsList[layer+1])
-                return np.squeeze(self.activationVectorsList[layer+1])
+                if(verbose):
+                    print("F(X) =\n", self.activationVectorsList[layer+1])
+                return np.atleast_1d(np.squeeze(self.activationVectorsList[layer+1]))
             else:
                 self.activationVectorsList[layer+1] = np.insert(self.getSigmoid(z), 0, 1, axis=0)
 
@@ -142,3 +154,35 @@ class NeuralNetwork:
 
     def lastLayer(self):
         return self.layersNumber-1
+    def calculateNumericGradients(self, inputs, oriY):
+        gradients = []
+        for layer in range(self.lastLayer()):
+            gradients.append(np.zeros(self.weightsMatrixList[layer].shape))
+        
+        for layer in range(self.lastLayer()):
+            originalLayerWeights = self.weightsMatrixList[layer]
+            for row in reversed(range(self.weightsMatrixList[layer].shape[0])):
+                for column in reversed(range(self.weightsMatrixList[layer].shape[1])):
+                    self.weightsMatrixList[layer][row,column] += self.epsilon    
+                    plus = []
+                    for index in range(len(inputs)):
+                        plus.append(self.propagate(inputs[index], False))
+                    
+                    self.weightsMatrixList[layer][row,column] -= 2*self.epsilon       
+                    minus = []
+                    for index in range(len(inputs)):
+                        minus.append(self.propagate(inputs[index], False))
+                    
+                    plus = np.array(plus)
+                    minus = np.array(minus)
+                    
+                    self.weightsMatrixList[layer] = originalLayerWeights
+                    
+                    print("CONJ 1: ", plus)
+                    print("CONJ 2: ", minus)
+                    print("plus: ", self.getErrorWithRegularization(plus, oriY))
+                    print("minus: ", self.getErrorWithRegularization(minus, oriY))
+                    gradients[layer][row,column] = (self.getErrorWithRegularization(plus, oriY)-self.getErrorWithRegularization(minus, oriY))/(2*self.epsilon)
+
+
+        return gradients
