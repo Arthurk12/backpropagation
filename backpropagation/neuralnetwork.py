@@ -159,10 +159,11 @@ class NeuralNetwork:
         for layer in range(self.lastLayer()):
             gradients.append(np.zeros(self.weightsMatrixList[layer].shape))
         
-        for layer in range(self.lastLayer()):
-            originalLayerWeights = self.weightsMatrixList[layer]
-            for row in reversed(range(self.weightsMatrixList[layer].shape[0])):
-                for column in reversed(range(self.weightsMatrixList[layer].shape[1])):
+        originalWeightsMatrixList = self.weightsMatrixList
+
+        for layer in reversed(range(self.lastLayer())):
+            for row in range(self.weightsMatrixList[layer].shape[0]):
+                for column in range(self.weightsMatrixList[layer].shape[1]):
                     self.weightsMatrixList[layer][row,column] += self.epsilon    
                     plus = []
                     for index in range(len(inputs)):
@@ -175,14 +176,13 @@ class NeuralNetwork:
                     
                     plus = np.array(plus)
                     minus = np.array(minus)
-                    
-                    self.weightsMatrixList[layer] = originalLayerWeights
-                    
-                    print("CONJ 1: ", plus)
-                    print("CONJ 2: ", minus)
-                    print("plus: ", self.getErrorWithRegularization(plus, oriY))
-                    print("minus: ", self.getErrorWithRegularization(minus, oriY))
+
+                    #print("CONJ 1: ", plus)
+                    #print("CONJ 2: ", minus)
+                    #print("plus: ", self.getErrorWithRegularization(plus, oriY))
+                    #print("minus: ", self.getErrorWithRegularization(minus, oriY))
                     gradients[layer][row,column] = (self.getErrorWithRegularization(plus, oriY)-self.getErrorWithRegularization(minus, oriY))/(2*self.epsilon)
+                    self.weightsMatrixList = originalWeightsMatrixList
 
 
         return gradients
